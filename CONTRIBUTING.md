@@ -12,7 +12,7 @@ welcomes issues and pull requests from everyone.
 
 ## Development setup
 
-Requirements: **Node.js ≥ 18** and **npm**.
+Requirements: **Node.js ≥ 20** and **npm**.
 
 ```bash
 # 1. Fork the repo on GitHub, then clone YOUR fork
