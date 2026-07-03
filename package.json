@@ -38,12 +38,12 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/suman-bonakurthi/viliha-drizzle-crud"
+		"url": "https://github.com/myviliha/viliha-drizzle-crud"
 	},
 	"bugs": {
-		"url": "https://github.com/suman-bonakurthi/viliha-drizzle-crud/issues"
+		"url": "https://github.com/myviliha/viliha-drizzle-crud/issues"
 	},
-	"homepage": "https://github.com/suman-bonakurthi/viliha-drizzle-crud/blob/main/README.md",
+	"homepage": "https://github.com/myviliha/viliha-drizzle-crud/blob/main/README.md",
 	"peerDependencies": {
 		"@nestjs/common": ">=10.0.0",
 		"@nestjs/core": ">=10.0.0",
