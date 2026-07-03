@@ -17,6 +17,11 @@ export interface OperationOptions {
     transaction?: any;
     relations?: string[];
     select?: string[];
+    search?: {
+        term: string;
+        columns: string[];
+        mode?: "ilike" | "fullText";
+    };
     hooks?: {
         skipBefore?: boolean;
         skipAfter?: boolean;

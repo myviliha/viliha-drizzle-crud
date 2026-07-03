@@ -359,6 +359,21 @@ export class UsersService extends SqlBaseCrudService<User, CreateUserDto, Update
 |---|---|
 | `fullTextSearch(term, columns, pagination?, options?)` | `Promise<{ data: T[]; total: number; page: number; limit: number }>` (PostgreSQL only) |
 
+`findAll` and `count` also accept `options.search` for list-style search where the
+normal filters, pagination, sorting, relation filters, and `total` count should
+all stay in one query path:
+
+```typescript
+await service.findAll(
+  {},
+  { page: 1, limit: 20, sortBy: 'name', sortOrder: 'asc' },
+  { search: { term: 'na', columns: ['name', 'code'] } },
+);
+```
+
+By default this searches the configured columns with `ILIKE '%term%'` joined by
+`OR`. For PostgreSQL full-text matching, pass `mode: 'fullText'`.
+
 ### `SqlOperationOptions`
 
 ```typescript
@@ -366,6 +381,11 @@ interface SqlOperationOptions {
   transaction?: any;            // run within an existing transaction
   select?: string[];            // return only these columns
   relations?: string[];         // eager-load these configured relations (see Relations)
+  search?: {
+    term: string;                // user search term
+    columns: string[];           // table column keys to search
+    mode?: 'ilike' | 'fullText'; // default: 'ilike'
+  };
   hooks?: { skipBefore?: boolean; skipAfter?: boolean };
   lock?: 'update' | 'share' | 'none';
   forNoKeyUpdate?: boolean;
@@ -629,6 +649,10 @@ const { data, total } = await service.fullTextSearch(
 
 Builds `to_tsvector(...) @@ plainto_tsquery(...)` across the given columns and
 orders by `ts_rank`. Throws if the dialect is not `postgresql`.
+
+For paginated list endpoints, prefer `findAll(..., ..., { search })` so search is
+combined with filters and the count query. Use `fullTextSearch` directly when
+you want ranked full-text results as the primary operation.
 
 ---
 

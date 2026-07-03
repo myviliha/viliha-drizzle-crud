@@ -40,6 +40,7 @@ export declare abstract class SqlBaseCrudService<T extends Record<string, any>, 
     protected isDataException(error: any): boolean;
     protected toDataException(error: any): ValidationFailedException;
     protected applyLock(query: any, options?: SqlOperationOptions): any;
+    protected buildSearchCondition(search?: SqlOperationOptions["search"]): any;
     find(id: any, options?: SqlOperationOptions): Promise<T | null>;
     findOne(where: Partial<T>, options?: SqlOperationOptions): Promise<T | null>;
     findAll(filters?: FilterDto, pagination?: PaginationOptions, options?: SqlOperationOptions): Promise<{

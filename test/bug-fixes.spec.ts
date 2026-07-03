@@ -350,3 +350,78 @@ describe("F4: case-insensitive string filter is EXACT, not a wildcard pattern", 
 		expect(render({ name: ["x", "y"] })).toContain("in (");
 	});
 });
+
+describe("F5: findAll supports cross-column search options", () => {
+	const dialect = new PgDialect();
+	const table = pgTable("e", {
+		id: serial("id").primaryKey(),
+		name: varchar("name", { length: 100 }),
+		email: varchar("email", { length: 100 }),
+	});
+	let svc: any;
+
+	beforeEach(() => {
+		svc = TestCrudFactory.createTestService(
+			Svc,
+			TestCrudFactory.createMockDb(),
+			table,
+			{ softDelete: { enabled: false, column: "deleted_at" } },
+		);
+	});
+
+	it("compiles default search mode as an OR of ILIKE contains checks", () => {
+		const condition = svc.buildSearchCondition({
+			term: "john",
+			columns: ["name", "email"],
+		});
+		const sqlText = dialect.sqlToQuery(condition).sql.toLowerCase();
+
+		expect(sqlText).toContain("ilike");
+		expect(sqlText).toContain(" or ");
+	});
+
+	it("compiles fullText search mode with to_tsvector/plainto_tsquery", () => {
+		const condition = svc.buildSearchCondition({
+			term: "john",
+			columns: ["name", "email"],
+			mode: "fullText",
+		});
+		const sqlText = dialect.sqlToQuery(condition).sql.toLowerCase();
+
+		expect(sqlText).toContain("to_tsvector");
+		expect(sqlText).toContain("plainto_tsquery");
+	});
+
+	it("ignores blank terms and unknown columns", () => {
+		expect(
+			svc.buildSearchCondition({ term: "   ", columns: ["name"] }),
+		).toBeUndefined();
+		expect(
+			svc.buildSearchCondition({ term: "john", columns: ["missing"] }),
+		).toBeUndefined();
+	});
+
+	it("applies the search condition to both data and count queries", async () => {
+		const dataQuery = chain([{ id: 1, name: "John", email: "j@example.com" }]);
+		const countQuery = chain([{ count: 1 }]);
+		const db: any = {
+			select: jest
+				.fn()
+				.mockReturnValueOnce(dataQuery)
+				.mockReturnValueOnce(countQuery),
+		};
+		const searchSvc = TestCrudFactory.createTestService(Svc, db, table, {
+			softDelete: { enabled: false, column: "deleted_at" },
+		});
+
+		const res = await (searchSvc as any).findAll(
+			undefined,
+			{ page: 1, limit: 20 },
+			{ search: { term: "john", columns: ["name", "email"] } },
+		);
+
+		expect(dataQuery.where).toHaveBeenCalledTimes(1);
+		expect(countQuery.where).toHaveBeenCalledTimes(1);
+		expect(res).toMatchObject({ total: 1, page: 1, limit: 20 });
+	});
+});

@@ -10,6 +10,14 @@ export interface RelationConfig {
 
 export type RelationsConfig = Record<string, RelationConfig>;
 
+export type SqlSearchMode = "ilike" | "fullText";
+
+export interface SqlSearchOptions {
+	term: string;
+	columns: string[];
+	mode?: SqlSearchMode;
+}
+
 export interface SqlCrudConfig {
 	// Database configuration
 	dialect: SqlDialect;
@@ -60,6 +68,7 @@ export interface SqlOperationOptions {
 	transaction?: any;
 	relations?: string[];
 	select?: string[];
+	search?: SqlSearchOptions;
 	hooks?: {
 		skipBefore?: boolean;
 		skipAfter?: boolean;

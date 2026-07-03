@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Scope note: the 3.0.x line is PostgreSQL-first. MySQL-specific paths (non-`RETURNING`
 restore, `ER_DUP_ENTRY` mapping, dialect locking) are tracked separately and unchanged here.
 
+## [3.1.0] - 2026-06-29
+
+### Added
+- **`findAll`/`count` now support `options.search`.** Callers can pass a search term and a list of
+  table columns, e.g. `{ search: { term: "na", columns: ["name", "code"] } }`. The default mode is
+  cross-column `ILIKE '%term%'`; `mode: "fullText"` compiles a PostgreSQL
+  `to_tsvector(...) @@ plainto_tsquery(...)` condition. The search predicate is applied to both the
+  data query and the count query, so paginated `total` stays correct.
+
 ## [3.0.4] - 2026-06-21
 
 Found while probing the package over real HTTP from the `drizzle-pkg-demo` consumer
@@ -91,6 +100,8 @@ Correctness pass: typed exceptions now map to real HTTP status codes, plus sever
 Published as `@quybquang/nestjs-drizzle-crud`. Notable: 2.2.0 added a configurable module-level
 default sort; 2.1.2 documented the timestamps feature. See git history for details.
 
+[3.1.0]: https://www.npmjs.com/package/nestjs-drizzle-crud/v/3.1.0
+[3.0.4]: https://www.npmjs.com/package/nestjs-drizzle-crud/v/3.0.4
 [3.0.3]: https://www.npmjs.com/package/nestjs-drizzle-crud/v/3.0.3
 [3.0.2]: https://www.npmjs.com/package/nestjs-drizzle-crud/v/3.0.2
 [3.0.1]: https://www.npmjs.com/package/nestjs-drizzle-crud/v/3.0.1

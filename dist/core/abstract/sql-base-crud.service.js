@@ -235,6 +235,29 @@ class SqlBaseCrudService {
             return query.for(options.lock);
         return query;
     }
+    buildSearchCondition(search) {
+        if (!search?.term || !search.columns?.length)
+            return undefined;
+        const term = String(search.term).trim();
+        if (!term)
+            return undefined;
+        const columns = search.columns
+            .map((columnName) => this.config.table[columnName])
+            .filter(Boolean);
+        if (columns.length === 0)
+            return undefined;
+        if (search.mode === "fullText") {
+            if (this.config.dialect !== "postgresql") {
+                throw new Error("Full-text search only supported in PostgreSQL");
+            }
+            const tsVector = drizzle_orm_1.sql.join(columns.map((column) => (0, drizzle_orm_1.sql) `to_tsvector('english', ${column})`), (0, drizzle_orm_1.sql) ` || `);
+            const tsQuery = (0, drizzle_orm_1.sql) `plainto_tsquery('english', ${term})`;
+            return (0, drizzle_orm_1.sql) `${tsVector} @@ ${tsQuery}`;
+        }
+        const pattern = `%${term.replace(/[\\%_]/g, "\\$&")}%`;
+        const conditions = columns.map((column) => (0, drizzle_orm_1.ilike)(column, pattern));
+        return conditions.length === 1 ? conditions[0] : (0, drizzle_orm_1.or)(...conditions);
+    }
     async find(id, options) {
         const { transaction, relations = [], select = [] } = options || {};
         const db = transaction || this.config.db;
@@ -274,6 +297,10 @@ class SqlBaseCrudService {
         const db = transaction || this.config.db;
         const eager = this.eagerRelations(relations);
         const { conditions, relations: filterRelations } = this.buildFilterConditions(filters);
+        const searchCondition = this.buildSearchCondition(options?.search);
+        if (searchCondition) {
+            conditions.push(searchCondition);
+        }
         if (this.config.softDelete?.enabled) {
             conditions.push((0, drizzle_orm_1.isNull)(this.config.table[this.config.softDelete.column]));
         }
@@ -589,6 +616,10 @@ class SqlBaseCrudService {
             .select({ count: (0, drizzle_orm_1.sql) `count(*)` })
             .from(this.config.table);
         const { conditions, relations: filterRelations } = this.buildFilterConditions(filters);
+        const searchCondition = this.buildSearchCondition(options?.search);
+        if (searchCondition) {
+            conditions.push(searchCondition);
+        }
         if (this.config.softDelete?.enabled) {
             conditions.push((0, drizzle_orm_1.isNull)(this.config.table[this.config.softDelete.column]));
         }
