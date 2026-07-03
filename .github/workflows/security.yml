@@ -1,0 +1,52 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet semgrep
+      - name: Scan (blocking on findings)
+        run: >-
+          semgrep scan
+          --config=p/security-audit
+          --config=p/owasp-top-ten
+          --config=p/typescript
+          --error --metrics=off
+          --exclude node_modules --exclude dist --exclude coverage
+
+  gitleaks:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 #
+      - name: Scan for secrets
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source=/repo --redact --verbose
+
+  npm-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Audit production deps (fail on high/critical)
+        run: npm audit --omit=dev --audit-level=high
