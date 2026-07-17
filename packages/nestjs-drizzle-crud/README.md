@@ -2,6 +2,8 @@
 
 A complete, type-safe CRUD abstraction layer for [Drizzle ORM](https://orm.drizzle.team/) in [NestJS](https://nestjs.com/) applications.
 
+**[Documentation](https://crud.viliha.com)** · **[npm](https://www.npmjs.com/package/nestjs-drizzle-crud)** · **[GitHub](https://github.com/myviliha/viliha-drizzle-crud)**
+
 Configure the database connection **once**, then every entity gets full CRUD (find / create / update / delete / soft-delete / bulk / pagination / filtering / full-text search) by extending one base class — no per-service connection wiring.
 
 ```typescript

@@ -6,6 +6,10 @@ in [NestJS](https://nestjs.com/).
 
 Turborepo + pnpm, TypeScript 7. Lint/format via [Biome](https://biomejs.dev/).
 
+**Docs:** https://crud.viliha.com ·
+**npm:** https://www.npmjs.com/package/nestjs-drizzle-crud ·
+**GitHub:** https://github.com/myviliha/viliha-drizzle-crud
+
 ## Layout
 
 ```
@@ -64,8 +68,10 @@ Copy `apps/api/.env.example` → `apps/api/.env` and set `DATABASE_URL`.
 ## CI / CD
 
 - **CI** (`.github/workflows/ci.yml`) — lint · typecheck · build · test on push/PR.
-- **Docs** (`deploy-docs.yml`) — static export → GitHub Pages on push to `main`
-  (enable Settings → Pages → Source = GitHub Actions). Add `DATABASE_URL` as a
-  repo secret to run the api e2e in CI.
-- **Release** (`release.yml`) — publishes `nestjs-drizzle-crud` to npm on a
-  GitHub Release (needs `NPM_TOKEN`).
+- **Docs** (`deploy-docs.yml`) — static export → GitHub Pages on push to `main`,
+  served at [crud.viliha.com](https://crud.viliha.com) (enable Settings → Pages
+  → Source = GitHub Actions). Add `DATABASE_URL` as a repo secret to run the api
+  e2e in CI.
+- **Release** (`release.yml`) — publishes
+  [`nestjs-drizzle-crud`](https://www.npmjs.com/package/nestjs-drizzle-crud) to
+  npm on a GitHub Release (needs `NPM_TOKEN`).
