@@ -1,0 +1,98 @@
+---
+title: Errors
+description: HTTP status code mapping for every exception thrown by SqlBaseCrudService, with the per-method reference.
+---
+
+Every exception in `nestjs-drizzle-crud` extends `@nestjs/common`'s `HttpException`. Nest's default exception filter maps the subclass to an HTTP status code automatically — no configuration required. You can `instanceof` the exports in a custom exception filter and the mapping will hold.
+
+## Status code table
+
+| HTTP | Exception | When |
+| --- | --- | --- |
+| **404 Not Found** | `EntityNotFoundException` | `update`, `restore`, `massUpdate`, `massRestore` when the row doesn't exist (or is soft-deleted, when soft-delete is enabled). |
+| **409 Conflict** | `DuplicateEntityException` | `create`, `update` when a unique constraint is violated (Postgres SQLSTATE `23505`). |
+| **400 Bad Request** | `ValidationFailedException` | Throw this from your `validateCreate` / `validateUpdate` hooks. |
+| **400 Bad Request** | `BulkOperationException` | Any bulk method whose transaction rolled back. Carries per-row errors. |
+| **400 Bad Request** | `BadRequestException` | Bad pagination / sort / filter input — see [Pagination & sorting — Clamping & fail-fast](/docs/pagination-sorting#clamping-fail-fast). |
+| **500 Internal Server Error** | `DatabaseConnectionException` | The connection couldn't be established. |
+| **500 Internal Server Error** | `TransactionException` | `executeSqlTransaction` hit a transaction-level error. |
+
+<Callout type="info">
+  All seven are re-exported from the package root — see [Exports](/docs/exports).
+</Callout>
+
+## Per-method reference
+
+### Reads — never throw `EntityNotFoundException`
+
+`find`, `findOne`, `findAll`, `exists`, `count`, and `fullTextSearch` return `null` / `false` / empty for missing rows. They never throw `EntityNotFoundException` — callers decide how to respond.
+
+A "missing" row includes soft-deleted rows when soft-delete is enabled.
+
+### Writes — when each method throws
+
+| Method | 404 | 409 | 400 |
+| --- | --- | --- | --- |
+| `create(dto)` | — | unique violation | hook rejection (`ValidationFailedException`) |
+| `update(id, dto)` | row missing or soft-deleted | unique violation | hook rejection |
+| `delete(id)` | row missing or soft-deleted | — | — |
+| `softDelete(id)` | row missing or soft-deleted | — | — |
+| `restore(id)` | row missing | — | — |
+
+`restore` returns the restored row (Postgres `RETURNING`); `update` returns the updated row.
+
+### Bulk methods
+
+Every bulk method (`massCreate`, `massUpdate`, `massSoftDelete`, `massRestore`, `massDelete`) runs in a single transaction. Any failure throws `BulkOperationException` (→ 400) and rolls back the entire operation — no partial writes. The exception's `errors` field carries the per-row cause for diagnostics.
+
+### `executeSqlTransaction`
+
+Wraps a callback in a transaction. On any throw inside the callback, the transaction rolls back and the error is wrapped in `TransactionException` (→ 500). Pass `{ transaction: tx }` in the options of any CRUD method to enlist it.
+
+## Custom exception filters
+
+Because the exceptions extend `HttpException`, custom filters only need to handle the typed subclass:
+
+```ts accent=nest title="exception.filter.ts"
+import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
+import {
+  DuplicateEntityException,
+  EntityNotFoundException,
+} from 'nestjs-drizzle-crud';
+
+@Catch(EntityNotFoundException, DuplicateEntityException)
+export class CrudExceptionFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const res = ctx.getResponse();
+
+    if (exception instanceof DuplicateEntityException) {
+      res.status(409).json({
+        statusCode: 409,
+        error: 'Conflict',
+        field: exception.field,
+        value: exception.value,
+      });
+      return;
+    }
+
+    if (exception instanceof EntityNotFoundException) {
+      res.status(404).json({
+        statusCode: 404,
+        error: 'Not Found',
+        entity: exception.entity,
+        id: exception.id,
+      });
+      return;
+    }
+  }
+}
+```
+
+If you don't write a custom filter, Nest's default filter already maps the subclass to the status code — you get correct 404 / 409 / 400 / 500 out of the box.
+
+## Next
+
+- → [Pagination & sorting — when input is clamped vs. when it throws](/docs/pagination-sorting#clamping-fail-fast)
+- → [Soft delete — what `find` / `update` see vs. what they throw](/docs/soft-delete)
+- → [Exports — the full list of typed exceptions](/docs/exports)

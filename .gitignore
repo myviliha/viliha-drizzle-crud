@@ -7,3 +7,20 @@ dist
 
 # OS
 .DS_Store
+
+# monorepo
+.turbo
+
+# next.js (apps/docs)
+.next
+.source
+.vercel
+next-env.d.ts
+
+# next static export (unused)
+out
+
+# secrets / local env
+.env
+.env.*
+!.env.example

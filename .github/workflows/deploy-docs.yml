@@ -1,0 +1,53 @@
+name: Deploy Docs
+
+# Builds apps/docs as a static export and publishes it to GitHub Pages.
+# One-time setup: repo Settings → Pages → Source = "GitHub Actions".
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel an in-flight Pages deploy; queue instead.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: pnpm/action-setup@v4 # dependabot pins this to a SHA
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build docs (static export)
+        # turbo builds the library first (docs depends on its types via twoslash).
+        # Custom domain (CNAME) serves at root, so no basePath.
+        run: |
+          export NEXT_PUBLIC_SITE_URL="https://$(cat CNAME)"
+          pnpm turbo run build --filter=nestjs-drizzle-crud-docs
+      - name: Preserve custom domain + disable Jekyll
+        run: |
+          cp CNAME apps/docs/out/CNAME
+          touch apps/docs/out/.nojekyll
+      - uses: actions/upload-pages-artifact@v3 # dependabot pins this to a SHA
+        with:
+          path: apps/docs/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4 # dependabot pins this to a SHA

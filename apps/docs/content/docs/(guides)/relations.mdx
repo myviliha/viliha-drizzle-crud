@@ -1,0 +1,144 @@
+---
+title: Relations
+description: Many-to-one / belongs-to eager loading and related-column filtering.
+---
+
+The package supports **many-to-one / one-to-one (belongs-to)** relations: a foreign key on this entity's table points at another table's key. Declare them in the entity's `forFeature` config under `relations`, keyed by relation name.
+
+<Callout type="warn" title="Scope">
+  Only **many-to-one / one-to-one** (belongs-to) relations are supported.
+  Has-many collection loading and many-to-many (join tables) are not
+  handled. For those, model with a custom service method using
+  `this.config.db`, or orchestrate across services in a controller.
+</Callout>
+
+## Declaring a relation
+
+```ts accent=nest title="cities/cities.module.ts"
+import { cities, states } from '../db/schema';
+
+DrizzleCrudModule.forFeature([
+  {
+    service: CitiesService,
+    table: cities,
+    config: {
+      relations: {
+        // cities.state_id -> states.id  (references defaults to 'id')
+        state: { table: states, localKey: 'state_id', references: 'id' },
+      },
+    },
+  },
+])
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `<relationName>` | `string` | The key used to refer to the relation in filters and eager loads. |
+| `table` | `Drizzle table` | The target table. |
+| `localKey` | `string` | The column on the *current* table that holds the FK. |
+| `references` | `string?` | The column on the target table to match against. Defaults to `'id'`. |
+
+## Two capabilities
+
+Once declared, a relation unlocks two features:
+
+### 1. Eager loading
+
+Pass `relations` in the operation options to `LEFT JOIN` and nest the related row:
+
+```ts
+await cities.find(1, { relations: ['state'] });
+// {
+//   id: 1,
+//   name: 'Bengaluru',
+//   state_id: 7,
+//   state: { id: 7, name: 'Karnataka', country_id: 3 },
+// }
+
+await cities.findAll(
+  {},
+  { page: 1, limit: 20 },
+  { relations: ['state'] },
+);
+```
+
+The related row is a nested object on the result. If there's no match, the relation comes back as `null`.
+
+### 2. Filtering by related columns
+
+Use the relation name as a filter key with a nested object of the **related table's** columns. Supports the same operators as normal filters:
+
+```ts
+// all cities whose state is named 'Karnataka' (case-insensitive exact)
+await cities.findAll({ state: { name: 'Karnataka' } });
+
+// all cities in a country — filter on the intermediate table's FK column
+await cities.findAll({ state: { countryId: 3 } });
+
+// combine with normal column filters and operators
+await cities.findAll({
+  name: { ilike: 'B%' },
+  state: { countryId: 3 },
+});
+```
+
+## Multi-level filtering
+
+Multi-level filtering works through the intermediate table's columns (e.g. filter cities by `state.country_id`), so you usually don't need a direct relation to the far table.
+
+```ts
+// cities → states (direct relation) → countries (via state.country_id)
+await cities.findAll({
+  state: { countryId: 3 },
+});
+```
+
+You can also declare a direct relation to the far table if the queries are frequent:
+
+```ts accent=nest
+config: {
+  relations: {
+    state: { table: states, localKey: 'state_id', references: 'id' },
+    country: { table: countries, localKey: 'state_id', references: 'id' /* requires denormalized FK */ },
+  },
+}
+```
+
+The package will join each declared relation independently when it's referenced in a filter or in `options.relations`.
+
+## Eager-loading multiple relations
+
+```ts
+await cities.findAll(
+  {},
+  { page: 1, limit: 20 },
+  { relations: ['state', 'country'] },
+);
+```
+
+Each relation is a single `LEFT JOIN`. Be aware of join-explosion risk — the more relations you eager-load on a large query, the slower it gets.
+
+## Combining with `select`
+
+`options.select` limits which columns come back from the *base* table. Eager-loaded relations come back in full unless you also use raw Drizzle to project them.
+
+```ts
+await cities.findAll(
+  {},
+  { page: 1, limit: 20 },
+  { select: ['id', 'name'], relations: ['state'] },
+);
+// { id, name, state: { ...all columns... } }
+```
+
+## Limitations
+
+- **No has-many.** If you need to load `cities` for a `state`, write a custom method on `StatesService` that uses raw Drizzle to query the inverse join.
+- **No many-to-many.** Same — use a join table and a custom method.
+- **No nested relations in `options.relations`.** Pass each relation name as a flat string. Eager-loading a relation-of-a-relation requires a custom method.
+- **Joins are always `LEFT`.** Inner-join semantics aren't supported out of the box; filter by `id: { isNotNull: true }` after the join if you need to drop the unmatched rows.
+
+## Next
+
+- → [Primary keys — including uuid, which affects relation FKs](/docs/primary-keys)
+- → [Filtering — the full filter spec including operator reference](/docs/filtering)

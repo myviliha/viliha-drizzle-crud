@@ -1,0 +1,148 @@
+---
+title: For AI agents
+description: Condensed, accurate package facts for code generation. Prefer these over guessing.
+---
+
+This page is a tight, fact-only summary designed to be read by code-generation tools. Prefer the rules and gotchas below over re-deriving them from the rest of the docs.
+
+## Package
+
+- **Name:** `nestjs-drizzle-crud`
+- **Version:** `3.1.0`
+- **License:** MIT
+- **Peers:** `@nestjs/common`, `@nestjs/core`, `drizzle-orm` (`>=0.28.0 <1.0.0`), `reflect-metadata`. Optional: `postgres` (PG) / `mysql2` (MySQL).
+
+## Setup is two steps and no per-service connection wiring
+
+1. `DrizzleCrudModule.forRoot({ dialect, connectionString | db, schema, defaults })` once in `AppModule`.
+2. `DrizzleCrudModule.forFeature([{ service, table, config? }])` in each feature module.
+
+## A service is an empty subclass — do NOT inject the db or pass `dialect`/`db`
+
+```ts
+class XService extends SqlBaseCrudService<X, CreateXDto, UpdateXDto, XFilterDto> {}
+```
+
+## Rules / gotchas
+
+- **Generics order:** `SqlBaseCrudService<Entity, CreateDto, UpdateDto, FilterDto>`. All but `Entity` default to `Partial<Entity>`.
+- Do **not** add an `@Inject('DRIZZLE_DB')` constructor — `forFeature` constructs the service for you. Adding a constructor that calls `super({...})` is a legacy/manual pattern and is unnecessary.
+- The table is passed in `forFeature`, **not** in the service.
+- If tables lack timestamp / soft-delete columns, set `defaults: { softDelete: false, timestamps: false }`, else inserts will reference non-existent columns.
+- `findAll` returns `{ data, total, page, limit }` — not a bare array.
+- Filter operators live inside an object value: `{ age: { gte: 18 } }`. `like` / `ilike` require caller-supplied `%` wildcards; a bare string is an exact, case-insensitive (when `caseSensitive === false`) match — `%` / `_` / `\` in the value are literal data, never wildcards.
+- `findAll` and `count` accept `options.search: { term, columns, mode? }`. Default `mode` is `'ilike'` and joins cross-column contains checks with `OR`; `mode: 'fullText'` is PostgreSQL-only. Search is applied to both data and count queries.
+- `delete` / `softDelete` return `boolean`; `update` / `restore` return the entity and throw `EntityNotFoundException` (→ 404) when missing. On Postgres, `restore()` returns the row via `RETURNING` rather than re-fetching it.
+- All exceptions extend `@nestjs/common`'s `HttpException`, so Nest's default filter maps them to status codes automatically: 404 (not found), 409 (unique violation), 400 (validation / bad input), 500 (connection / transaction). Custom filters can `instanceof` them.
+- Relations (many-to-one only): declare in `forFeature` `config.relations = { relName: { table, localKey, references? } }`. Then eager-load via `options.relations: ['relName']` (nested object on the result, `null` if unmatched) and filter via `findAll({ relName: { col: value } })` (same operators; multi-level via the intermediate table's columns, e.g. `state.country_id`). No has-many / many-to-many.
+- Primary keys: `primaryKey` (default `'id'`) + `primaryKeyType` (`'serial' | 'bigserial' | 'int' | 'bigint' | 'uuid'`) per entity in `forFeature` config. UUID works on Postgres via `RETURNING`; with `uuid` keys, route params are strings — don't use `ParseIntPipe`.
+- Full-text search is PostgreSQL-only.
+- Bulk methods are transactional. A failure throws `BulkOperationException` and rolls back the entire operation.
+- `executeSqlTransaction(async (tx) => ...)` opens a transaction; pass `{ transaction: tx }` in `options` to any CRUD method to enlist it.
+
+## Quick reference
+
+### Configure
+
+```ts
+DrizzleCrudModule.forRoot({
+  dialect: 'postgresql',
+  connectionString: process.env.DATABASE_URL,
+  schema,
+});
+```
+
+### Service
+
+```ts
+class UsersService extends SqlBaseCrudService<User> {}
+```
+
+### Bind
+
+```ts
+DrizzleCrudModule.forFeature([{ service: UsersService, table: users }]);
+```
+
+### Filter
+
+```ts
+await service.findAll({
+  status: 'active',                        // exact
+  role: ['admin', 'editor'],               // IN
+  age: { gte: 18, lt: 65 },                // operators
+  name: { ilike: 'jo%' },                  // pattern (caller wildcards)
+  deletedAt: { isNull: true },
+});
+```
+
+### List search
+
+```ts
+await service.findAll(
+  { status: 'active' },
+  { page: 1, limit: 20 },
+  { search: { term: 'john', columns: ['name', 'email'] } },
+);
+```
+
+### Eager load relations
+
+```ts
+await service.findAll({}, { page: 1, limit: 20 }, { relations: ['state'] });
+```
+
+## Public exports (alphabetical)
+
+```
+and, asc, BaseCrudSpecHelper, BulkOperationException, CrudFeature,
+CrudService, DatabaseConnectionException, desc, DRIZZLE_CONNECTION,
+DRIZZLE_CRUD_CONFIG, DRIZZLE_DB, DrizzleConnection, DrizzleCrudConfig,
+DrizzleCrudModule, DuplicateEntityException, eq, EntityNotFoundException,
+gt, gte, ICrudService, ilike, inArray, isNotNull, isNull, like, lt, lte, ne,
+or, PrimaryKeyType, RelationConfig, RelationsConfig, SortColumn, SortOrder,
+sql, SqlBaseCrudService, SqlCrudConfig, SqlDialect, SqlOperationOptions,
+TestCrudFactory, TransactionException, ValidationFailedException
+```
+
+## Anti-patterns — do not generate these
+
+```ts accent=nest
+// ❌ wrong: db is not injected
+class UsersService extends SqlBaseCrudService<User> {
+  constructor(@Inject(DRIZZLE_DB) private db: any) {
+    super({ dialect: 'postgresql' as const, db, table: users });
+  }
+}
+
+// ❌ wrong: super() takes no arguments
+class UsersService extends SqlBaseCrudService<User> {
+  constructor() {
+    super(/* nothing */);
+  }
+}
+
+// ❌ wrong: table is bound in forFeature, not the service
+class UsersService extends SqlBaseCrudService<User, /* ... */, users> {}
+
+// ❌ wrong: returning a bare array from a controller
+@Get()
+async findAll() {
+  return this.users.findAll({});  // returns { data, total, page, limit }
+}
+
+// ❌ wrong: ParseIntPipe on a UUID primary key
+@Get(':id')
+find(@Param('id', ParseIntPipe) id: number) { /* ... */ }
+```
+
+## Sources of truth
+
+When in doubt, prefer:
+
+1. The TypeScript types — `import type { ... } from 'nestjs-drizzle-crud'` is the canonical definition.
+2. The package README on npm.
+3. The repo at `github.com/myviliha/viliha-drizzle-crud`.
+4. The [Changelog](/docs/changelog) — release-by-release behavior changes since 3.0.0.
+
+This page summarizes (1) and (2) and may lag minor patch releases. If a generated snippet disagrees with the TypeScript types, **trust the types**.

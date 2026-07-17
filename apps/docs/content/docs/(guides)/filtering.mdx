@@ -1,0 +1,177 @@
+---
+title: Filtering
+description: Build filter objects for findAll() and count() — bare strings, arrays, operators, and the exact-vs-pattern gotcha.
+---
+
+`findAll(filters)` and `count(filters)` accept a plain object keyed by column name. Unknown keys and `null` / `undefined` values are silently ignored, so it's safe to pass a `Partial<Entity>` straight from a query string.
+
+## Bare values
+
+```ts
+await service.findAll({
+  status: 'active',           // string: exact match (case-insensitive when sql.caseSensitive === false)
+  isVerified: true,            // boolean: equality
+  organizationId: 42,          // number: equality
+  role: ['admin', 'editor'],   // array: IN (...)
+});
+```
+
+<Callout type="warn" title="Strings are exact, not partial">
+  A bare string is an **exact** match. When `sql.caseSensitive` is `false`
+  (the default) the package compiles it to `lower(column) = lower(value)`,
+  so the match is case-insensitive and `%` / `_` / `\` in the value are
+  treated as literal data — never wildcards. For partial / pattern
+  matching, use the explicit `ilike` operator with your own `%`
+  wildcards:
+
+  ```ts
+  await service.findAll({ name: { ilike: 'jo%' } });   // starts with "jo"
+  await service.findAll({ name: { ilike: '%doe%' } }); // contains "doe"
+  ```
+</Callout>
+
+## Operator object
+
+For anything beyond equality, wrap the value in an object with operator keys:
+
+```ts
+await service.findAll({
+  age: { gte: 18, lt: 65 },       // 18 <= age < 65
+  email: { neq: '[email protected]' },    // not the system account
+  name: { ilike: 'jo%' },         // pattern match — you supply the wildcards
+  deletedAt: { isNull: true },     // only non-deleted rows
+  state: { name: 'Karnataka' },    // filter by related column — see Relations
+});
+```
+
+Multiple operators in the same object are AND-ed together.
+
+### Operator reference
+
+| Operator | SQL | Notes |
+| --- | --- | --- |
+| `gt` / `gte` / `lt` / `lte` | `>` `>=` `<` `<=` | Numeric and date columns. |
+| `neq` | `<>` | Not equal. |
+| `like` | `LIKE` | Caller supplies `%` wildcards. |
+| `ilike` | `ILIKE` (PostgreSQL) / `LIKE` with lower-cased values (MySQL) | Case-insensitive. Caller supplies `%`. |
+| `in` | `IN (...)` | The value is an array. |
+| `isNull` | `IS NULL` | Value must be `true`. |
+| `isNotNull` | `IS NOT NULL` | Value must be `true`. |
+
+## Combining filters
+
+```ts
+await service.findAll({
+  status: 'active',
+  role: ['admin', 'editor'],     // status='active' AND role IN (...)
+  createdAt: { gte: new Date('2025-01-01') },
+});
+```
+
+All top-level keys are AND-ed. There is no built-in OR for plain column filters; for that, drop down to a custom method that uses `or(...)` from `drizzle-orm` directly. The package re-exports the most common operators:
+
+```ts accent=drizzle
+import { or, and, sql } from 'nestjs-drizzle-crud';
+```
+
+## List search across columns
+
+`findAll` and `count` also accept `options.search` when you need a user-facing
+search box to combine with normal filters, pagination, sorting, relation filters,
+and a correct `total` count.
+
+```ts
+const page = await service.findAll(
+  { status: 'active' },
+  { page: 1, limit: 20, sortBy: 'name', sortOrder: 'asc' },
+  {
+    search: {
+      term: 'john',
+      columns: ['name', 'email'],
+    },
+  },
+);
+
+const total = await service.count(
+  { status: 'active' },
+  { search: { term: 'john', columns: ['name', 'email'] } },
+);
+```
+
+By default, search compiles to cross-column `ILIKE '%term%'` checks joined by
+`OR`. Empty terms and unknown column names are ignored.
+
+```ts
+await service.findAll(
+  {},
+  { page: 1, limit: 20 },
+  { search: { term: 'john', columns: ['name', 'email'], mode: 'ilike' } },
+);
+```
+
+For PostgreSQL full-text matching inside the `findAll` / `count` path, set
+`mode: 'fullText'`:
+
+```ts
+await service.findAll(
+  { status: 'active' },
+  { page: 1, limit: 20 },
+  {
+    search: {
+      term: 'john doe',
+      columns: ['name', 'bio'],
+      mode: 'fullText',
+    },
+  },
+);
+```
+
+Use `fullTextSearch()` directly when ranked full-text results are the primary
+operation. Use `findAll(..., ..., { search })` when search needs to compose with
+the list endpoint's filters and count query.
+
+## Ignoring unknown keys
+
+If a filter object contains keys that aren't columns on the table, they're silently dropped. This makes it safe to accept filter objects from request queries:
+
+```ts accent=nest
+@Get()
+findAll(@Query() filters: UserFilterDto) {
+  return this.users.findAll(filters);   // unknown keys are dropped
+}
+```
+
+## Combining with pagination & sorting
+
+`findAll` takes three positional arguments: filters, pagination, options. See [Pagination & sorting](/docs/pagination-sorting) for the full shape.
+
+```ts
+await service.findAll(
+  { status: 'active' },
+  { page: 2, limit: 25, sortBy: 'createdAt', sortOrder: 'desc' },
+);
+```
+
+## Filtering by related columns
+
+When you've [declared a many-to-one relation](/docs/relations), use the relation name as a filter key. The package will join the related table for you.
+
+```ts
+await service.findAll({
+  state: { name: 'Karnataka' },
+});
+```
+
+Multi-level filtering works through the intermediate FK column:
+
+```ts
+// cities where state.country_id = 3 — no direct relation to countries required
+await service.findAll({
+  state: { countryId: 3 },
+});
+```
+
+## Next
+
+- → [Pagination & sorting — `findAll` shape and default sort](/docs/pagination-sorting)
+- → [Relations — eager loading and related-column filters](/docs/relations)

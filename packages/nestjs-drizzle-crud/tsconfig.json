@@ -1,0 +1,15 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "commonjs",
+		"declaration": true,
+		"removeComments": true,
+		"sourceMap": true,
+		"outDir": "./dist",
+		"rootDir": "./src",
+		"incremental": true,
+		"types": ["jest", "node"]
+	},
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "dist", "test", "examples"]
+}

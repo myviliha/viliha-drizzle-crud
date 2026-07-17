@@ -1,0 +1,79 @@
+{
+	"name": "nestjs-drizzle-crud",
+	"version": "3.1.0",
+	"description": "A complete CRUD abstraction layer for Drizzle ORM in NestJS applications",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist/**/*",
+		"README.md",
+		"CHANGELOG.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"prebuild": "rm -rf dist *.tsbuildinfo",
+		"build": "tsc -p tsconfig.build.json",
+		"build:watch": "tsc -p tsconfig.build.json --watch",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"prepublishOnly": "npm run build && npm test",
+		"test": "jest",
+		"test:watch": "jest --watch",
+		"test:cov": "jest --coverage",
+		"lint": "biome lint src",
+		"format": "biome format --write src"
+	},
+	"keywords": [
+		"nestjs",
+		"drizzle",
+		"drizzle-orm",
+		"crud",
+		"rest",
+		"api",
+		"postgresql",
+		"mysql",
+		"database",
+		"orm",
+		"typescript"
+	],
+	"author": "Suman Bonakurthi <sumanbonakurthi@gmail.com>",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/myviliha/viliha-drizzle-crud",
+		"directory": "packages/nestjs-drizzle-crud"
+	},
+	"bugs": {
+		"url": "https://github.com/myviliha/viliha-drizzle-crud/issues"
+	},
+	"homepage": "https://github.com/myviliha/viliha-drizzle-crud/blob/main/packages/nestjs-drizzle-crud/README.md",
+	"peerDependencies": {
+		"@nestjs/common": ">=10.0.0",
+		"@nestjs/core": ">=10.0.0",
+		"drizzle-orm": ">=0.28.0 <1.0.0",
+		"postgres": ">=3.0.0",
+		"reflect-metadata": "^0.1.13 || ^0.2.0"
+	},
+	"peerDependenciesMeta": {
+		"postgres": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@jest/globals": "^30.0.0",
+		"@nestjs/common": "^11.1.28",
+		"@nestjs/core": "^11.1.28",
+		"@nestjs/testing": "^11.1.28",
+		"@swc/core": "^1.7.0",
+		"@swc/jest": "^0.2.37",
+		"@types/jest": "^30.0.0",
+		"@types/node": "^26.0.0",
+		"drizzle-orm": "^0.45.2",
+		"jest": "^30.4.2",
+		"postgres": "^3.4.9",
+		"reflect-metadata": "^0.2.0",
+		"typescript": "^7.0.0"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	}
+}

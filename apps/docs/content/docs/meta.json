@@ -1,0 +1,11 @@
+{
+	"title": "Documentation",
+	"description": "Type-safe CRUD for Drizzle ORM in NestJS",
+	"pages": [
+		"index",
+		"(getting-started)",
+		"(configuration)",
+		"(guides)",
+		"(reference)"
+	]
+}

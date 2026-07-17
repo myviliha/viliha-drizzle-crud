@@ -1,0 +1,5 @@
+{
+	"title": "Getting started",
+	"description": "Install the package and prepare your NestJS + Drizzle project",
+	"pages": ["installation", "quick-start"]
+}

@@ -1,80 +1,23 @@
 {
-	"name": "nestjs-drizzle-crud",
-	"version": "3.1.0",
-	"description": "A complete CRUD abstraction layer for Drizzle ORM in NestJS applications",
-	"main": "dist/index.js",
-	"types": "dist/index.d.ts",
-	"files": [
-		"dist/**/*",
-		"README.md",
-		"CHANGELOG.md",
-		"LICENSE"
-	],
-	"scripts": {
-		"prebuild": "rm -rf dist *.tsbuildinfo",
-		"build": "tsc -p tsconfig.build.json",
-		"build:watch": "tsc -p tsconfig.build.json --watch",
-		"prepublishOnly": "npm run build && npm test",
-		"test": "jest",
-		"test:watch": "jest --watch",
-		"test:cov": "jest --coverage",
-		"lint": "eslint src",
-		"format": "prettier --write src/**/*.ts"
-	},
-	"keywords": [
-		"nestjs",
-		"drizzle",
-		"drizzle-orm",
-		"crud",
-		"rest",
-		"api",
-		"postgresql",
-		"mysql",
-		"database",
-		"orm",
-		"typescript"
-	],
-	"author": "Suman Bonakurthi <sumanbonakurthi@gmail.com>",
-	"license": "MIT",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/myviliha/viliha-drizzle-crud"
-	},
-	"bugs": {
-		"url": "https://github.com/myviliha/viliha-drizzle-crud/issues"
-	},
-	"homepage": "https://github.com/myviliha/viliha-drizzle-crud/blob/main/README.md",
-	"peerDependencies": {
-		"@nestjs/common": ">=10.0.0",
-		"@nestjs/core": ">=10.0.0",
-		"drizzle-orm": ">=0.28.0 <1.0.0",
-		"postgres": ">=3.0.0",
-		"reflect-metadata": "^0.1.13 || ^0.2.0"
-	},
-	"peerDependenciesMeta": {
-		"postgres": {
-			"optional": true
-		}
-	},
-	"devDependencies": {
-		"@jest/globals": "^30.0.0",
-		"@nestjs/common": "^11.1.27",
-		"@nestjs/core": "^11.1.27",
-		"@nestjs/testing": "^11.1.27",
-		"@types/jest": "^30.0.0",
-		"@types/node": "^26.0.0",
-		"@typescript-eslint/eslint-plugin": "^8.61.1",
-		"@typescript-eslint/parser": "^8.61.1",
-		"drizzle-orm": "^0.45.2",
-		"eslint": "^10.5.0",
-		"jest": "^30.4.2",
-		"postgres": "^3.4.9",
-		"prettier": "^3.0.0",
-		"reflect-metadata": "^0.2.0",
-		"ts-jest": "^29.4.11",
-		"typescript": "^6.0.3"
-	},
+	"name": "viliha-drizzle",
+	"version": "0.0.0",
+	"private": true,
+	"description": "Monorepo for nestjs-drizzle-crud — the published library, its documentation site, and an example NestJS app used as the e2e testbed.",
+	"packageManager": "pnpm@10.28.1",
 	"engines": {
 		"node": ">=20.0.0"
+	},
+	"scripts": {
+		"build": "turbo run build",
+		"test": "turbo run test",
+		"typecheck": "turbo run typecheck",
+		"dev": "turbo run dev",
+		"lint": "biome lint .",
+		"format": "biome format --write ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.4",
+		"turbo": "^2.10.5",
+		"typescript": "^7.0.0"
 	}
 }

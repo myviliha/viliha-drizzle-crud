@@ -1,0 +1,18 @@
+{
+	"title": "Guides",
+	"description": "Practical recipes for filtering, relations, hooks, and more",
+	"pages": [
+		"defining-services",
+		"filtering",
+		"pagination-sorting",
+		"relations",
+		"primary-keys",
+		"soft-delete",
+		"timestamps",
+		"bulk-operations",
+		"transactions",
+		"full-text-search",
+		"hooks-validation",
+		"testing"
+	]
+}

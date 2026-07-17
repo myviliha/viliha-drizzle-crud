@@ -1,0 +1,5 @@
+{
+	"title": "Reference",
+	"description": "API surface, type definitions, and condensed facts for code generation",
+	"pages": ["api", "config-types", "exports", "llm-notes"]
+}

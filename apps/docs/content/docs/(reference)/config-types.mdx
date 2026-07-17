@@ -1,0 +1,192 @@
+---
+title: Config types
+description: SqlCrudConfig and DrizzleCrudConfig — the two interfaces that drive the module.
+---
+
+The package exposes two config types: `DrizzleCrudConfig` (the input to `forRoot` / `forRootAsync`) and `SqlCrudConfig` (the merged, per-entity config the base class actually uses).
+
+## `DrizzleCrudConfig`
+
+The input to `DrizzleCrudModule.forRoot(config)` and `forRootAsync`. It describes the project-level configuration: the database connection, schema, and global defaults.
+
+```ts twoslash
+// ---cut---
+interface DrizzleCrudConfig {
+  /** Required. */
+  dialect: 'postgresql' | 'mysql';
+
+  /** PostgreSQL: connection string. The module builds the connection. */
+  connectionString?: string;
+
+  /** Any dialect: pre-built Drizzle instance. Required for MySQL. */
+  db?: any;
+
+  /** Required when building from connectionString. */
+  schema?: Record<string, unknown>;
+
+  /** Per-project defaults applied to every entity unless overridden. */
+  defaults?: {
+    softDelete?: boolean;
+    timestamps?: boolean;
+    pagination?: { defaultLimit: number; maxLimit: number };
+    sortOrder?: 'asc' | 'desc';
+  };
+
+  /** Dialect tuning. */
+  sql?: {
+    caseSensitive?: boolean;
+    useReturning?: boolean;
+    jsonSupport?: boolean;
+    enableFullTextSearch?: boolean;
+  };
+}
+```
+
+### Defaults
+
+```ts
+defaults: {
+  softDelete: true,
+  timestamps: true,
+  pagination: { defaultLimit: 20, maxLimit: 100 },
+  // sortOrder: opt-in (no fallback)
+}
+
+sql: {
+  caseSensitive: false,
+  useReturning: dialect === 'postgresql',
+  jsonSupport: true,
+  enableFullTextSearch: false,
+}
+```
+
+## `SqlCrudConfig`
+
+The fully-resolved, per-entity configuration. The package constructs this by layering:
+
+```
+global defaults (DrizzleCrudConfig)
+  → @CrudService decorator metadata
+    → forFeature { config }
+      → db, table (set by forFeature)
+```
+
+```ts twoslash
+// ---cut---
+interface SqlCrudConfig {
+  // ---- Set by the module ----
+  dialect: 'postgresql' | 'mysql';
+  db: any;
+  table: any;
+
+  // ---- Primary key ----
+  primaryKey: string;              // default 'id'
+  primaryKeyType:
+    | 'serial' | 'bigserial' | 'int' | 'bigint' | 'uuid';
+
+  // ---- Soft delete ----
+  softDelete?: {
+    enabled: boolean;
+    column: string;               // e.g. 'deleted_at'
+  };
+
+  // ---- Timestamps ----
+  timestamps?: {
+    createdAt: string;            // e.g. 'created_at'
+    updatedAt: string;            // e.g. 'updated_at'
+  };
+
+  // ---- Pagination ----
+  pagination?: {
+    defaultLimit: number;
+    maxLimit: number;
+  };
+
+  // ---- Default ORDER BY ----
+  defaultSort?: Array<{
+    column: string;
+    order: 'asc' | 'desc';
+  }>;
+
+  // ---- Dialect tuning ----
+  sql?: {
+    caseSensitive: boolean;
+    useReturning: boolean;
+    jsonSupport: boolean;
+    enableFullTextSearch: boolean;
+  };
+
+  // ---- Many-to-one / one-to-one relations ----
+  relations?: Record<
+    string,
+    {
+      table: any;
+      localKey: string;
+      references?: string;
+    }
+  >;
+}
+```
+
+## `RelationConfig` and `RelationsConfig`
+
+```ts twoslash
+// ---cut---
+interface RelationConfig {
+  table: any;            // the target Drizzle table
+  localKey: string;      // the FK column on the *current* table
+  references?: string;   // the column on the target table (defaults to 'id')
+}
+
+type RelationsConfig = Record<string, RelationConfig>;
+```
+
+## `SqlSearchOptions`
+
+`SqlOperationOptions.search` is accepted by `findAll` and `count`.
+
+```ts twoslash
+// ---cut---
+type SqlSearchMode = 'ilike' | 'fullText';
+
+interface SqlSearchOptions {
+  term: string;
+  columns: string[];
+  mode?: SqlSearchMode;
+}
+```
+
+The default mode is `ilike`, which searches each configured column with a
+contains-style pattern and joins the column predicates with `OR`. `fullText` is
+PostgreSQL-only and compiles to `to_tsvector(...) @@ plainto_tsquery(...)`.
+
+## `CrudFeature`
+
+The input to `forFeature`:
+
+```ts twoslash
+import { SqlBaseCrudService, type SqlCrudConfig } from 'nestjs-drizzle-crud';
+// ---cut---
+interface CrudFeature {
+  service: typeof SqlBaseCrudService;
+  table: any;                       // Drizzle table
+  config?: Partial<SqlCrudConfig>;  // per-entity overrides
+}
+```
+
+`config` is `SqlCrudConfig` minus `db` and `dialect` (those are injected by `forFeature`).
+
+## `SqlDialect`, `PrimaryKeyType`, `SortColumn`, `SortOrder`
+
+```ts twoslash
+// ---cut---
+type SqlDialect = 'postgresql' | 'mysql';
+type PrimaryKeyType = 'serial' | 'bigserial' | 'int' | 'bigint' | 'uuid';
+type SortOrder = 'asc' | 'desc';
+interface SortColumn { column: string; order: SortOrder }
+```
+
+## Next
+
+- → [Exports — the full public API surface](/docs/exports)
+- → [API reference — every method's full signature](/docs/api)

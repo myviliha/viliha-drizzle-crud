@@ -1,0 +1,131 @@
+---
+title: Soft delete
+description: Enable per-project or per-entity soft delete with a deleted_at column, and restore soft-deleted rows.
+---
+
+Soft delete sets a `deleted_at` timestamp on a row instead of removing it. Reads (`find`, `findOne`, `findAll`, `count`) automatically exclude soft-deleted rows; `restore(id)` clears the column and brings the row back.
+
+## Enabling
+
+### Globally (default for all entities)
+
+```ts accent=nest title="app.module.ts"
+DrizzleCrudModule.forRoot({
+  dialect: 'postgresql',
+  connectionString: process.env.DATABASE_URL,
+  schema,
+  defaults: { softDelete: true },   // default is already true
+});
+```
+
+The package looks for a column named `deleted_at` by default.
+
+### Per-entity (different column name or disable for one entity)
+
+```ts accent=nest
+DrizzleCrudModule.forFeature([
+  {
+    service: AuditLogService,
+    table: auditLog,
+    config: { softDelete: { enabled: false } },
+  },
+  {
+    service: UsersService,
+    table: users,
+    config: { softDelete: { enabled: true, column: 'archived_at' } },
+  },
+])
+```
+
+Per-entity config overrides the global default. The `column` is the column name in your Drizzle schema; the package uses it in `WHERE` clauses and in `SET` / `UPDATE` statements.
+
+## The methods
+
+### `softDelete(id, options?)` → `Promise<boolean>`
+
+```ts
+const ok = await users.softDelete(42);
+if (!ok) {
+  // row didn't exist
+}
+```
+
+Returns `true` if the row was found and marked deleted, `false` if it didn't exist.
+
+### `restore(id, options?)` → `Promise<T>`
+
+```ts
+const restored = await users.restore(42);
+// full row, with deleted_at = null
+```
+
+Throws `EntityNotFoundException` if the row didn't exist (or didn't have a soft-delete column set). Returns the restored entity on success.
+
+<Callout type="info">
+  `restore` is independent of soft-delete state. It will happily
+  re-`restore` a row that wasn't soft-deleted (effectively a no-op on
+  the column). If you need to check the current state, use
+  `findOne({ id, deletedAt: { isNotNull: true } })` first.
+</Callout>
+
+### `massSoftDelete(ids, options?)` → `Promise<boolean>`
+
+```ts
+await users.massSoftDelete([1, 2, 3]);
+```
+
+Same as `softDelete` but in a single transaction. If any of the IDs don't exist, the entire operation is rolled back and `BulkOperationException` is thrown.
+
+### Reads automatically exclude soft-deleted rows
+
+```ts
+// excludes rows with deleted_at IS NOT NULL
+await users.find(42);
+await users.findOne({ email: '[email protected]' });
+await users.findAll({});
+await users.count({});
+```
+
+If you ever need to see soft-deleted rows (e.g. an admin view), use a custom method that filters with `deletedAt: { isNotNull: true }`.
+
+## The schema column
+
+```ts accent=drizzle title="db/schema.ts"
+import { pgTable, serial, varchar, timestamp } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+});
+```
+
+The column type should accept `null` (and the package will set it to `null` on `restore` and to `new Date()` on `softDelete`).
+
+<Callout type="warn" title="If the column doesn't exist">
+  If your table has no `deleted_at` column, set
+  `defaults: { softDelete: false }` (or per-entity
+  `config: { softDelete: { enabled: false } }`). Otherwise
+  `softDelete` / `restore` will throw a database error referencing a
+  column that doesn't exist.
+</Callout>
+
+## Soft delete + hard delete
+
+The package exposes both `softDelete` and `delete`:
+
+| Method | Behavior |
+| --- | --- |
+| `delete(id, options?)` | Hard delete — removes the row. Skips soft-delete checks. |
+| `softDelete(id, options?)` | Sets `deleted_at = now()`. Reads afterwards exclude it. |
+| `massDelete(ids, options?)` | Hard delete, transactional. |
+| `massSoftDelete(ids, options?)` | Soft delete, transactional. |
+
+Use `delete` when you really want the row gone (e.g. GDPR right-to-erasure flows). Use `softDelete` when you want reversibility and audit trails.
+
+## Next
+
+- → [Timestamps — package-managed vs DB-managed `created_at` / `updated_at`](/docs/timestamps)
+- → [Errors — `EntityNotFoundException` → 404 when `restore` finds nothing](/docs/errors)
+- → [Lifecycle hooks — `beforeSoftDelete` / `afterSoftDelete` for cross-cutting concerns](/docs/hooks-validation)

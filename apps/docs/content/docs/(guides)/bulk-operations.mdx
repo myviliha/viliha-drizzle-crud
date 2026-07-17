@@ -1,0 +1,87 @@
+---
+title: Bulk operations
+description: massCreate, massUpdate, massSoftDelete, massRestore, massDelete — all transactional with rollback on failure.
+---
+
+Bulk operations run inside a single database transaction. If any row fails, the entire operation is rolled back and a `BulkOperationException` is thrown, carrying the per-row errors.
+
+## The five methods
+
+```ts
+await service.massCreate([dto1, dto2, dto3]);
+await service.massUpdate([1, 2, 3], { status: 'archived' });
+await service.massSoftDelete([1, 2, 3]);
+await service.massRestore([1, 2, 3]);
+await service.massDelete([1, 2, 3]);
+```
+
+| Method | Returns | Failure mode |
+| --- | --- | --- |
+| `massCreate(data[], options?)` | `Promise<T[]>` | Throws `BulkOperationException` on the first failing row. |
+| `massUpdate(ids[], data, options?)` | `Promise<T[]>` | Same. |
+| `massSoftDelete(ids[], options?)` | `Promise<boolean>` | Same. |
+| `massRestore(ids[], options?)` | `Promise<T[]>` | Same. |
+| `massDelete(ids[], options?)` | `Promise<boolean>` | Same. |
+
+## Transactional semantics
+
+All bulk methods wrap their work in a single transaction. If any row fails (constraint violation, FK error, validation, etc.), the transaction is rolled back — no partial writes are visible to subsequent reads.
+
+<Callout type="info">
+  A bulk operation that succeeds returns its full result. A bulk operation
+  that fails throws `BulkOperationException` and **none** of the rows are
+  modified. Use this as a guarantee, not just an optimization.
+</Callout>
+
+## `BulkOperationException`
+
+```ts
+import { BulkOperationException } from 'nestjs-drizzle-crud';
+
+try {
+  await users.massCreate([{ name: 'a' }, { name: 'b' /* missing required email */ }]);
+} catch (err) {
+  if (err instanceof BulkOperationException) {
+    // err.errors: per-row errors
+    // err.index: index of the failing row
+    console.error(`Row ${err.index} failed:`, err.errors);
+  }
+  throw err;
+}
+```
+
+Catch `BulkOperationException` to surface per-row errors to the client. Otherwise let it propagate to your exception filter for a generic 500.
+
+## Lifecycle hooks during bulk operations
+
+The standard `beforeCreate` / `afterCreate` (and the corresponding update / delete / softDelete / restore hooks) fire **once per row**, in array order. A `massCreate([a, b, c])` calls `beforeCreate` three times before the insert, then the insert, then `afterCreate` three times.
+
+If any row's `beforeCreate` throws, the operation is aborted before the insert — no rows are written.
+
+## Passing options
+
+All bulk methods accept the same `SqlOperationOptions` as their non-bulk counterparts. In particular, you can pass a custom transaction:
+
+```ts
+await service.executeSqlTransaction(async (tx) => {
+  await service.massCreate(dtos, { transaction: tx });
+  await otherService.massUpdate(otherIds, { flag: true }, { transaction: tx });
+});
+```
+
+See [Transactions](/docs/transactions) for the full pattern.
+
+## Limits and pagination
+
+Bulk methods don't paginate. They accept the full array in memory and execute it as a single transaction. For very large bulk operations (thousands of rows), consider:
+
+- **Chunking on the caller side** — process arrays in batches of 100–500 rows and call `massCreate` per batch.
+- **Switching to a streaming insert** — write a custom method that uses Drizzle's `db.insert(...).values(chunk).execute()` chain with explicit chunking.
+
+The cap is on the database side, not the package — single transactions holding thousands of row locks can starve other connections.
+
+## Next
+
+- → [Transactions — `executeSqlTransaction` for cross-service atomicity](/docs/transactions)
+- → [Errors — `BulkOperationException` → 400 mapping and per-row error details](/docs/errors)
+- → [Hooks & validation — per-row hooks during bulk ops](/docs/hooks-validation)

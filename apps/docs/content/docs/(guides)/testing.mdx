@@ -1,0 +1,146 @@
+---
+title: Testing
+description: TestCrudFactory builds mock db, table, and entity instances for fast unit tests — no real database required.
+---
+
+The package ships a `TestCrudFactory` with helpers to construct a working service backed by an in-memory Drizzle instance. The result is a fast unit test that exercises the real base class — `findAll`, `create`, hooks, transactions, the lot — without spinning up Postgres or MySQL.
+
+## The four helpers
+
+```ts accent=nest title="user.factory.ts"
+import { TestCrudFactory, SqlBaseCrudService } from 'nestjs-drizzle-crud';
+import { pgTable, serial, varchar, timestamp } from 'drizzle-orm/pg-core';
+
+const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull().$onUpdate(() => new Date()),
+  deletedAt: timestamp('deleted_at'),
+});
+
+type User = typeof users.$inferSelect;
+class UsersService extends SqlBaseCrudService<User, User, Partial<User>, Partial<User>> {}
+
+export const buildUsersServiceFixture = () => {
+  const mockDb = TestCrudFactory.createMockDb();
+  const mockTable = TestCrudFactory.createMockTable(users);
+  return TestCrudFactory.createTestService(UsersService, mockDb, mockTable, {
+    primaryKey: 'id',
+    primaryKeyType: 'serial',
+    softDelete: { enabled: true, column: 'deleted_at' },
+  });
+};
+```
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `createMockDb()` | Drizzle instance | A `pglite` (in-memory Postgres) or stub instance. Supports the subset of the Drizzle API the package uses. |
+| `createMockTable(schemaTable)` | Drizzle table | Wraps your schema table for use in tests. |
+| `createMockEntity(overrides?)` | `Partial<T>` | A row with sensible defaults. Useful as a fixture. |
+| `createTestService(Service, db, table, config?)` | `T` | Constructs the service with the merged config. |
+
+## A complete test
+
+```ts accent=nest title="users.service.spec.ts"
+import { Test } from '@nestjs/testing';
+import {
+  TestCrudFactory,
+  EntityNotFoundException,
+  ValidationFailedException,
+} from 'nestjs-drizzle-crud';
+import { users } from '../db/schema';
+import { UsersService } from './users.service';
+
+describe('UsersService', () => {
+  let service: UsersService;
+
+  beforeEach(async () => {
+    const mockDb = TestCrudFactory.createMockDb();
+    const mockTable = TestCrudFactory.createMockTable(users);
+    service = TestCrudFactory.createTestService(UsersService, mockDb, mockTable, {
+      primaryKey: 'id',
+      primaryKeyType: 'serial',
+      softDelete: { enabled: true, column: 'deleted_at' },
+    });
+
+    // For Nest DI in service constructors, set up a TestingModule.
+    // For empty-subclass services this isn't needed.
+  });
+
+  it('creates and finds a user', async () => {
+    const user = await service.create({ name: 'Ada', email: '[email protected]' });
+    expect(user.name).toBe('Ada');
+
+    const found = await service.find(user.id);
+    expect(found?.email).toBe('[email protected]');
+  });
+
+  it('throws on update of missing row', async () => {
+    await expect(service.update(999, { name: 'X' })).rejects.toBeInstanceOf(
+      EntityNotFoundException,
+    );
+  });
+
+  it('excludes soft-deleted rows from findAll', async () => {
+    const u = await service.create({ name: 'A', email: '[email protected]' });
+    await service.softDelete(u.id);
+
+    const { data, total } = await service.findAll({});
+    expect(total).toBe(0);
+  });
+});
+```
+
+## When you need real Nest DI
+
+If your service has its own constructor-injected dependencies (event bus, logger, other services), wrap the service in a Nest `TestingModule`:
+
+```ts accent=nest
+beforeEach(async () => {
+  const module = await Test.createTestingModule({
+    providers: [
+      UsersService,
+      { provide: 'EVENT_BUS', useValue: { emit: jest.fn() } },
+    ],
+  }).compile();
+
+  service = module.get(UsersService);
+});
+```
+
+The `forFeature` registration isn't needed in tests because `TestCrudFactory.createTestService` constructs the service directly.
+
+## Testing hooks
+
+Hooks are just methods on the service. The simplest way to verify they fire is to spy on them:
+
+```ts
+it('calls beforeCreate with the input', async () => {
+  const spy = jest.spyOn(service as any, 'beforeCreate');
+  await service.create({ name: 'Ada', email: '[email protected]' });
+  expect(spy).toHaveBeenCalledWith({ name: 'Ada', email: '[email protected]' });
+});
+```
+
+Or override a hook in a test-only subclass:
+
+```ts
+class TestUsersService extends UsersService {
+  protected async beforeCreate(data: CreateUserDto) {
+    return { ...data, slug: 'test-slug' };
+  }
+}
+```
+
+## What `createMockDb` actually does
+
+In 3.0.2, `createMockDb` returns an in-memory Drizzle instance backed by [`pglite`](https://github.com/electric-sql/pglite) — a real Postgres compiled to WebAssembly. This means the tests use the **same SQL dialect** as production, the same `RETURNING` semantics, and the same column types. The trade-off is a small startup cost on the first test in a file.
+
+If you need faster tests with weaker guarantees (e.g. for a CI that runs thousands of unit tests), write your own mock by implementing the subset of the Drizzle API the package calls — but pglite is the recommended path.
+
+## Next
+
+- → [Reference: API — every method's full signature](/docs/api)
+- → [For AI agents — condensed package facts for code generation](/docs/llm-notes)

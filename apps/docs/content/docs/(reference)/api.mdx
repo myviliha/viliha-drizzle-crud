@@ -1,0 +1,175 @@
+---
+title: API reference
+description: Every method on SqlBaseCrudService, with full signatures and return types.
+---
+
+The class signature:
+
+```ts twoslash
+// ---cut---
+class SqlBaseCrudService<
+  T,
+  CreateDto = Partial<T>,
+  UpdateDto = Partial<T>,
+  FilterDto = Partial<T>,
+> {}
+```
+
+The four generics correspond to:
+
+| Generic | Default | Use |
+| --- | --- | --- |
+| `T` | — | The entity row type (typically `typeof table.$inferSelect`). |
+| `CreateDto` | `Partial<T>` | The shape accepted by `create()` and `massCreate()`. |
+| `UpdateDto` | `Partial<T>` | The shape accepted by `update()` and `massUpdate()`. |
+| `FilterDto` | `Partial<T>` | The shape accepted by `findAll(filters)` and `count(filters)`. |
+
+## Read
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `find(id, options?)` | `Promise<T \| null>` | By primary key. Skips soft-deleted rows. |
+| `findOne(where, options?)` | `Promise<T \| null>` | `where` is a `Partial<T>` (equality only). |
+| `findAll(filters?, pagination?, options?)` | `Promise<{ data: T[]; total: number; page: number; limit: number }>` | Supports `options.search`. See [Filtering](/docs/filtering) and [Pagination](/docs/pagination-sorting). |
+| `exists(id, options?)` | `Promise<boolean>` | Cheaper than `find` when you only need a yes/no. |
+| `count(filters?, options?)` | `Promise<number>` | Total rows matching the filter and `options.search`, ignoring pagination. |
+
+### `find` signature
+
+```ts twoslash
+import { SqlBaseCrudService, type SqlOperationOptions } from 'nestjs-drizzle-crud';
+type User = { id: number; name: string };
+declare class S extends SqlBaseCrudService<User, User, Partial<User>, Partial<User>> {}
+declare const s: S;
+// ---cut---
+const result = s.find(1);
+const resultWithOptions = s.find(1, { relations: ['state'] });
+```
+
+### `findOne` signature
+
+```ts twoslash
+import { SqlBaseCrudService } from 'nestjs-drizzle-crud';
+type User = { id: number; name: string; email: string };
+declare class S extends SqlBaseCrudService<User, User, Partial<User>, Partial<User>> {}
+declare const s: S;
+// ---cut---
+const user = s.findOne({ email: '[email protected]' });
+```
+
+### `findAll` signature
+
+```ts
+import { SqlBaseCrudService } from 'nestjs-drizzle-crud';
+type User = { id: number; name: string; status: string };
+declare class S extends SqlBaseCrudService<User, User, Partial<User>, Partial<User>> {}
+declare const s: S;
+
+const page = s.findAll(
+  { status: 'active' },            // filters
+  { page: 1, limit: 20 },          // pagination
+  {
+    relations: ['state'],
+    search: { term: 'john', columns: ['name'] },
+  },                               // options
+);
+```
+
+### `count` with search
+
+```ts
+import { SqlBaseCrudService } from 'nestjs-drizzle-crud';
+type User = { id: number; name: string; email: string; status: string };
+declare class S extends SqlBaseCrudService<User, User, Partial<User>, Partial<User>> {}
+declare const s: S;
+
+const total = s.count(
+  { status: 'active' },
+  { search: { term: 'john', columns: ['name', 'email'] } },
+);
+```
+
+## Write
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `create(data, options?)` | `Promise<T>` | Runs `validateCreate` → `mapCreateDtoToEntity` → `beforeCreate` → insert → `afterCreate`. |
+| `update(id, data, options?)` | `Promise<T>` | Throws `EntityNotFoundException` if missing. |
+| `delete(id, options?)` | `Promise<boolean>` | Hard delete. |
+| `softDelete(id, options?)` | `Promise<boolean>` | Sets `deleted_at` to `now()`. Requires soft delete enabled. |
+| `restore(id, options?)` | `Promise<T>` | Clears `deleted_at`. Throws `EntityNotFoundException` if missing. |
+
+## Bulk (single transaction, rolls back on any failure)
+
+| Method | Returns |
+| --- | --- |
+| `massCreate(data[], options?)` | `Promise<T[]>` |
+| `massUpdate(ids[], data, options?)` | `Promise<T[]>` |
+| `massSoftDelete(ids[], options?)` | `Promise<boolean>` |
+| `massRestore(ids[], options?)` | `Promise<T[]>` |
+| `massDelete(ids[], options?)` | `Promise<boolean>` |
+
+Throws `BulkOperationException` on failure.
+
+## Search
+
+| Method | Returns | Notes |
+| --- | --- | --- |
+| `fullTextSearch(term, columns, pagination?, options?)` | `Promise<{ data: T[]; total: number; page: number; limit: number }>` | PostgreSQL only. Same envelope as `findAll`. `to_tsvector(...) @@ plainto_tsquery(...)` with `ts_rank` ordering. Excludes soft-deleted rows when soft-delete is enabled. |
+
+## Transaction helper
+
+```ts twoslash
+import { SqlBaseCrudService } from 'nestjs-drizzle-crud';
+type User = { id: number; name: string };
+class S extends SqlBaseCrudService<User, Omit<User, 'id'>, Partial<User>, Partial<User>> {
+  // Called from inside a service method.
+  doIt() {
+    return this.executeSqlTransaction(async (tx) => {
+      return this.create({ name: 'Ada' }, { transaction: tx });
+    });
+  }
+}
+declare const s: S;
+// ---cut---
+const result = s.doIt();
+```
+
+`executeSqlTransaction(callback)` opens a transaction, runs the callback with the transaction handle, commits on success, rolls back on any throw.
+
+## `SqlOperationOptions`
+
+```ts twoslash
+// ---cut---
+interface SqlOperationOptions {
+  /** Run within an existing transaction. */
+  transaction?: any;
+  /** Return only these columns. */
+  select?: string[];
+  /** Eager-load these configured relations (see Relations). */
+  relations?: string[];
+  /** Search configured table columns in findAll() and count(). */
+  search?: {
+    term: string;
+    columns: string[];
+    mode?: 'ilike' | 'fullText';
+  };
+  /** Skip before/after hooks for this call. */
+  hooks?: {
+    skipBefore?: boolean;
+    skipAfter?: boolean;
+  };
+  /** Row-level lock. PostgreSQL only. See [Row-level locks](/docs/row-locks). */
+  lock?: 'update' | 'share' | 'none';
+  /** Use FOR NO KEY UPDATE. PostgreSQL only. See [Row-level locks](/docs/row-locks). */
+  forNoKeyUpdate?: boolean;
+}
+```
+
+`relations` eager-loads relations declared in the entity's config — see [Relations](/docs/relations).
+
+## Next
+
+- → [Errors — HTTP status code mapping for every exception](/docs/errors)
+- → [Config types — `SqlCrudConfig` and `DrizzleCrudConfig`](/docs/config-types)
+- → [Exports — the full public API surface](/docs/exports)

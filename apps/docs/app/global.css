@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+@import "fumadocs-twoslash/twoslash.css";
+
+:root {
+	/* Primary: NestJS brand red #E0234E */
+	--color-fd-primary: oklch(0.588 0.218 16.1);
+	--fd-primary-rgb: 224 35 78;
+	/* Secondary: Drizzle green #C5F74F — used sparingly (homepage pill, footer rule, OG accent) */
+	--color-fd-drizzle: oklch(0.911 0.197 124.6);
+	--fd-drizzle-rgb: 197 247 79;
+
+	/* Drizzle-style surface tokens (light defaults — overridden in .dark) */
+	--fd-surface-muted: #fafafa;
+	--fd-border-muted: #efefef;
+	--fd-border-hover: #d1d5db;
+	--fd-heading-color: #0f172a;
+	--fd-heading-tracking: -0.48px;
+	--fd-pill-bg: #f1f2f345;
+}
+
+.dark {
+	--fd-surface-muted: #1a1a1a;
+	--fd-border-muted: #292929;
+	--fd-border-hover: #303030;
+	--fd-heading-color: #c8c9ca;
+	--fd-pill-bg: #111111;
+}
+
+/* Code-fence accent borders — read from `accent=nest|drizzle` meta in MDX fences.
+   The `data-accent` lands on the Fumadocs-rendered `<figure>` wrapper that holds
+   the Shiki code block (rounded, overflow-hidden). The inset box-shadow
+   follows the rounded corners. */
+figure[data-accent="drizzle"] {
+	box-shadow: inset 3px 0 0 var(--color-fd-drizzle);
+}
+figure[data-accent="nest"] {
+	box-shadow: inset 3px 0 0 var(--color-fd-primary);
+}
+
+/* Drizzle-style soft overrides for the auto-injected Fumadocs nav on the home page:
+   chips use 2 px corners (Drizzle sharp) instead of rounded-full pills, and the
+   nav uses the same hairline border as the rest of the page. */
+#nd-nav nav [data-search-full] {
+	border-radius: 2px;
+}
+#nd-nav nav button[aria-label="Toggle Theme"] {
+	border-radius: 2px;
+}
+
+@layer base {
+	html {
+		color-scheme: dark light;
+	}
+
+	body {
+		-webkit-font-smoothing: antialiased;
+		text-rendering: optimizeLegibility;
+		padding-inline: max(0px, env(safe-area-inset-left))
+			max(0px, env(safe-area-inset-right));
+	}
+
+	::selection {
+		background-color: color-mix(in oklch, var(--color-fd-primary) 35%, transparent);
+		color: var(--color-fd-foreground);
+	}
+}

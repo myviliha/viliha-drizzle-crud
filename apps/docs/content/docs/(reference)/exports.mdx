@@ -1,0 +1,107 @@
+---
+title: Exports
+description: The full public API surface of nestjs-drizzle-crud, grouped by category.
+---
+
+Every export below is available from the package root: `import { ... } from 'nestjs-drizzle-crud'`.
+
+## Core
+
+| Export | Kind | Description |
+| --- | --- | --- |
+| `SqlBaseCrudService` | class | The base class your services extend. See [API reference](/docs/api). |
+
+## Module & DI tokens
+
+| Export | Kind | Description |
+| --- | --- | --- |
+| `DrizzleCrudModule` | class | The Nest module. Has `forRoot`, `forRootAsync`, `forFeature` static methods. |
+| `DRIZZLE_DB` | `string` | DI token for the resolved Drizzle instance. |
+| `DRIZZLE_CONNECTION` | `string` | DI token for the connection wrapper. |
+| `DRIZZLE_CRUD_CONFIG` | `string` | DI token for the normalized global config. |
+| `DrizzleConnection` | class | The internal connection wrapper. Exposed for advanced use. |
+
+## Decorators
+
+| Export | Kind | Description |
+| --- | --- | --- |
+| `CrudService` | decorator | Attach per-entity config to a service class. The `forFeature` `config` field still wins. |
+
+## Exceptions
+
+All exceptions extend `@nestjs/common`'s `HttpException`, so Nest's default exception filter maps them to HTTP status codes automatically. They are real classes — use `instanceof` checks in your exception filters. See [Errors](/docs/errors) for the per-method reference.
+
+| Export | HTTP | Description |
+| --- | --- | --- |
+| `EntityNotFoundException` | 404 | Thrown by `update`, `restore`, `massUpdate`, `massRestore` when the row doesn't exist. |
+| `DuplicateEntityException` | 409 | Thrown by `create` / `update` when a unique constraint is violated (Postgres SQLSTATE `23505`). |
+| `ValidationFailedException` | 400 | Throw this from your `validateCreate` / `validateUpdate` hooks to reject bad input. |
+| `BulkOperationException` | 400 | Thrown by any bulk method when the transaction rolls back. Carries per-row errors. |
+| `DatabaseConnectionException` | 500 | Thrown when the connection can't be established. |
+| `TransactionException` | 500 | Thrown by `executeSqlTransaction` on transaction-level errors. |
+
+## Types
+
+| Export | Kind |
+| --- | --- |
+| `ICrudService` | `interface` — the abstract shape `SqlBaseCrudService` implements. |
+| `CrudFeature` | `type` — the input to `forFeature`. |
+| `DrizzleCrudConfig` | `type` — input to `forRoot` / `forRootAsync`. |
+| `SqlCrudConfig` | `interface` — the per-entity merged config. |
+| `SqlOperationOptions` | `interface` — the third argument to most methods, including `search` for `findAll` and `count`. |
+| `RelationConfig` | `interface` — describes one relation in `relations`. |
+| `RelationsConfig` | `type` — a record of `RelationConfig`. |
+| `SqlDialect` | `'postgresql' \| 'mysql'`. |
+| `PrimaryKeyType` | `'serial' \| 'bigserial' \| 'int' \| 'bigint' \| 'uuid'`. |
+| `SortColumn` | `{ column, order }`. |
+| `SortOrder` | `'asc' \| 'desc'`. |
+
+## Re-exported Drizzle helpers
+
+For convenience, the package re-exports the Drizzle helpers most commonly used in `mapCreateDtoToEntity`, custom methods, and filter construction:
+
+```ts
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  gte,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  like,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+} from 'nestjs-drizzle-crud';
+```
+
+All of these are pass-throughs to `drizzle-orm` — the package doesn't wrap or extend them.
+
+## Test utilities
+
+| Export | Description |
+| --- | --- |
+| `TestCrudFactory` | Class with `createMockDb`, `createMockTable`, `createMockEntity`, `createTestService`. |
+| `BaseCrudSpecHelper` | A higher-level helper that builds a full service + fixtures. |
+
+See [Testing](/docs/testing) for usage.
+
+## What's **not** exported
+
+The following are internal to the package and should not be imported directly:
+
+- `DrizzleCrudModule`'s internal `connectionProviders` / `buildEntityConfig` / `normalizeConfig` helpers.
+- The internal `DRIZZLE_RAW_CONFIG` token.
+
+If you find yourself reaching for these, open a feature request — the public API may need a hook.
+
+## Next
+
+- → [Config types — `SqlCrudConfig` and `DrizzleCrudConfig`](/docs/config-types)
+- → [For AI agents — condensed package facts for code generation](/docs/llm-notes)
