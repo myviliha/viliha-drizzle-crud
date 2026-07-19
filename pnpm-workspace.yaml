@@ -7,3 +7,7 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
   - unrs-resolver
+
+# Force the patched postcss everywhere (GHSA-qx2v-qp2m-jg93, pulled via next).
+overrides:
+  postcss: ">=8.5.10"
