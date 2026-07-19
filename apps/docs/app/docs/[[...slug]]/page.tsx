@@ -9,6 +9,8 @@ import { notFound } from "next/navigation";
 import { getMDXComponents } from "@/components/mdx";
 import { createRelativeLink } from "fumadocs-ui/mdx";
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/json-ld";
+import { articleJsonLd, createMetadata } from "@/lib/seo";
 
 export default async function Page(props: {
 	params: Promise<{ slug?: string[] }>;
@@ -21,6 +23,13 @@ export default async function Page(props: {
 
 	return (
 		<DocsPage toc={page.data.toc} full={page.data.full}>
+			<JsonLd
+				data={articleJsonLd({
+					title: page.data.title,
+					description: page.data.description,
+					path: page.url,
+				})}
+			/>
 			<DocsTitle>{page.data.title}</DocsTitle>
 			<DocsDescription>{page.data.description}</DocsDescription>
 			<DocsBody>
@@ -45,8 +54,11 @@ export async function generateMetadata(props: {
 	const page = source.getPage(params.slug);
 	if (!page) notFound();
 
-	return {
+	return createMetadata({
 		title: page.data.title,
 		description: page.data.description,
-	};
+		path: page.url,
+		ogType: "article",
+		keywords: [page.data.title.toLowerCase()],
+	});
 }
